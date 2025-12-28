@@ -191,7 +191,7 @@ func (a App) checkIPAndUpdateDNS() {
 	// Lookup current address(es) from first successful IP source
 	var currentIPs []netip.Addr
 	for _, ipSrc := range a.ipSources {
-		ipSettings := IPSettings{
+		ipSettings := &IPSettings{
 			IPRanges:      a.IPRanges,
 			IPVersions:    a.Versions,
 			RejectIPRegex: a.RejectIPRegex,

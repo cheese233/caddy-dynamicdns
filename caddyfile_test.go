@@ -465,7 +465,7 @@ func TestStaticGetIPsWithRejectFilter(t *testing.T) {
 				s.IPs = append(s.IPs, ip)
 			}
 
-			settings := IPSettings{
+			settings := &IPSettings{
 				RejectIPRegex: tt.rejectRegex,
 				IPVersions: IPVersions{
 					IPv4: &tt.v4Enabled,
