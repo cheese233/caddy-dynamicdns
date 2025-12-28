@@ -21,12 +21,12 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
+	"github.com/dlclark/regexp2"
 	upnp "gitlab.com/NebulousLabs/go-upnp"
 	"go.uber.org/zap"
 )
@@ -42,9 +42,9 @@ func init() {
 func (s *IPSettings) MatchesRejectFilter(ip netip.Addr) bool {
 	if s.rejectIPPattern == nil && s.RejectIPRegex != "" {
 		// Compile the regex on first use
-		pattern, err := regexp.Compile(s.RejectIPRegex)
+		pattern, err := regexp2.Compile(s.RejectIPRegex, 0)
 		if err != nil {
-			// Invalid regex should be caught during validation, but log as warning
+			// Invalid regex - log but don't reject
 			return false
 		}
 		s.rejectIPPattern = pattern
@@ -54,7 +54,11 @@ func (s *IPSettings) MatchesRejectFilter(ip netip.Addr) bool {
 		return false
 	}
 
-	matched := s.rejectIPPattern.MatchString(ip.String())
+	matched, err := s.rejectIPPattern.MatchString(ip.String())
+	if err != nil {
+		// Error in matching - don't reject
+		return false
+	}
 	return matched
 }
 
@@ -88,8 +92,8 @@ type IPSettings struct {
 	IPVersions
 	// Regex pattern to filter IPs. IPs matching this pattern will be excluded.
 	RejectIPRegex string `json:"reject_ip_regex,omitempty"`
-	// Compiled regex for performance
-	rejectIPPattern *regexp.Regexp
+	// Compiled regex for performance (using regexp2 which supports lookaheads)
+	rejectIPPattern *regexp2.Regexp
 }
 
 // SimpleHTTP is an IP source that looks up the public IP addresses by
