@@ -49,21 +49,30 @@ func (s *IPSettings) MatchesRejectFilter(ip netip.Addr) bool {
 		}
 		s.rejectIPPattern = pattern
 	}
-	
+
 	if s.rejectIPPattern == nil {
 		return false
 	}
-	
+
 	return s.rejectIPPattern.MatchString(ip.String())
 }
 
-// IsIPAllowed checks if the IP is allowed (not rejected by filter and within IP ranges).
+// IsIPAllowed checks if the IP is allowed (correct version, not rejected by filter, and within IP ranges).
 func (s *IPSettings) IsIPAllowed(ip netip.Addr) bool {
-	// First check if IP matches reject filter
+	// First check if the IP version is enabled
+	if ip.Is4() && !s.V4Enabled() {
+		return false
+	}
+	if ip.Is6() && !s.V6Enabled() {
+		return false
+	}
+
+	// Then check if IP matches reject filter
 	if s.MatchesRejectFilter(ip) {
 		return false
 	}
-	// Then check if IP is within allowed ranges
+
+	// Finally check if IP is within allowed ranges
 	return s.Contains(ip)
 }
 
