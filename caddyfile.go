@@ -39,6 +39,7 @@ func init() {
 //		ip_source upnp|simple_http <endpoint>
 //		include <CIDRs ...>
 //		exclude <CIDRs ...>
+//		reject_ip_regex <regex>
 //		update_only
 //		dynamic_domains
 //		versions ipv4|ipv6
@@ -46,6 +47,7 @@ func init() {
 //	}
 //
 // If <names...> are omitted after <zone>, then "@" will be assumed.
+// The reject_ip_regex option filters out IPs matching the provided regex pattern.
 func parseApp(d *caddyfile.Dispenser, _ any) (any, error) {
 	app := new(App)
 
@@ -159,6 +161,15 @@ func parseApp(d *caddyfile.Dispenser, _ any) (any, error) {
 				return nil, err
 			}
 			app.Exclude = append(app.Exclude, ranges...)
+
+		case "reject_ip_regex":
+			if !d.NextArg() {
+				return nil, d.ArgErr()
+			}
+			app.RejectIPRegex = d.Val()
+			if d.NextArg() {
+				return nil, d.ArgErr()
+			}
 
 		case "ttl":
 			if !d.NextArg() {

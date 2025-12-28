@@ -290,3 +290,60 @@ Equivalent JSON config:
 }
 ```
 </details>
+
+<details>
+<summary>Filtering unwanted IPs with <code>reject_ip_regex</code></summary>
+
+You can filter out unwanted IP addresses (such as private, loopback, or other special ranges) using the `reject_ip_regex` directive. This option takes a regular expression and will exclude any IPs matching the pattern from being used in DNS updates.
+
+**Caddyfile example:**
+
+```
+{
+	dynamic_dns {
+		provider cloudflare {env.CLOUDFLARE_API_TOKEN}
+		domains {
+			example.com @ www
+		}
+		ip_source simple_http https://icanhazip.com
+		reject_ip_regex "^(10\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.|192\\.168\\.).*"
+	}
+}
+```
+
+This will reject all RFC1918 private IPv4 addresses from being used.
+
+**Other common patterns:**
+- Reject only 192.168.x.x: `^192\\.168\\..*`
+- Reject loopback and link-local: `^(127\\.|::1$|fe80:).*`
+- Reject multicast: `^(224|225|226|227|228|229|230|231|232|233|234|235|236|237|238|239)\\..*`
+
+**JSON config example:**
+
+```json
+{
+  "apps": {
+    "dynamic_dns": {
+      "domains": {
+        "example.com": ["@", "www"]
+      },
+      "dns_provider": {
+        "name": "cloudflare",
+        "api_token": "{env.CLOUDFLARE_API_TOKEN}"
+      },
+      "ip_sources": [
+        {
+          "source": "simple_http",
+          "endpoints": ["https://icanhazip.com"]
+        }
+      ],
+      "reject_ip_regex": "^(10\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.|192\\.168\\.).*"
+    }
+  }
+}
+```
+
+- The regex is matched against the string form of the IP address.
+- You can use this with any IP source and combine with `include`/`exclude` ranges for fine-grained control.
+
+</details>

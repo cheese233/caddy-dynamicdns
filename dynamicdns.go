@@ -68,6 +68,10 @@ type App struct {
 	// The IP ranges to include and exclude
 	IPRanges `json:",omitzero"`
 
+	// Regex pattern to reject IPs matching the pattern.
+	// IPs matching this pattern will be excluded from DNS updates.
+	RejectIPRegex string `json:"reject_ip_regex,omitempty"`
+
 	// How frequently to check the public IP address. Default: 30m
 	CheckInterval caddy.Duration `json:"check_interval,omitempty"`
 
@@ -187,7 +191,11 @@ func (a App) checkIPAndUpdateDNS() {
 	// Lookup current address(es) from first successful IP source
 	var currentIPs []netip.Addr
 	for _, ipSrc := range a.ipSources {
-		ipSettings := IPSettings{a.IPRanges, a.Versions}
+		ipSettings := IPSettings{
+			IPRanges:      a.IPRanges,
+			IPVersions:    a.Versions,
+			RejectIPRegex: a.RejectIPRegex,
+		}
 		currentIPs, err = ipSrc.GetIPs(a.ctx, ipSettings)
 		if len(currentIPs) == 0 {
 			err = fmt.Errorf("no IP addresses returned")

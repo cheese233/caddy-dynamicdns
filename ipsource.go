@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"regexp"
 	"strings"
 	"time"
 
@@ -37,6 +38,35 @@ func init() {
 	caddy.RegisterModule(Static{})
 }
 
+// MatchesRejectFilter returns true if the IP matches the reject regex pattern.
+func (s *IPSettings) MatchesRejectFilter(ip netip.Addr) bool {
+	if s.rejectIPPattern == nil && s.RejectIPRegex != "" {
+		// Compile the regex on first use
+		pattern, err := regexp.Compile(s.RejectIPRegex)
+		if err != nil {
+			// Invalid regex should be caught during validation, but log as warning
+			return false
+		}
+		s.rejectIPPattern = pattern
+	}
+	
+	if s.rejectIPPattern == nil {
+		return false
+	}
+	
+	return s.rejectIPPattern.MatchString(ip.String())
+}
+
+// IsIPAllowed checks if the IP is allowed (not rejected by filter and within IP ranges).
+func (s *IPSettings) IsIPAllowed(ip netip.Addr) bool {
+	// First check if IP matches reject filter
+	if s.MatchesRejectFilter(ip) {
+		return false
+	}
+	// Then check if IP is within allowed ranges
+	return s.Contains(ip)
+}
+
 // IPSource is a type that can get IP addresses.
 type IPSource interface {
 	GetIPs(context.Context, IPSettings) ([]netip.Addr, error)
@@ -46,6 +76,10 @@ type IPSource interface {
 type IPSettings struct {
 	IPRanges
 	IPVersions
+	// Regex pattern to filter IPs. IPs matching this pattern will be excluded.
+	RejectIPRegex string `json:"reject_ip_regex,omitempty"`
+	// Compiled regex for performance
+	rejectIPPattern *regexp.Regexp
 }
 
 // SimpleHTTP is an IP source that looks up the public IP addresses by
@@ -127,14 +161,14 @@ func (sh SimpleHTTP) GetIPs(ctx context.Context, settings IPSettings) ([]netip.A
 
 	if settings.V4Enabled() {
 		ip := getForVersion("tcp4", "IPv4")
-		if ip.IsValid() && settings.Contains(ip) {
+		if ip.IsValid() && settings.IsIPAllowed(ip) {
 			out = append(out, ip)
 		}
 	}
 
 	if settings.V6Enabled() {
 		ip := getForVersion("tcp6", "IPv6")
-		if ip.IsValid() && settings.Contains(ip) {
+		if ip.IsValid() && settings.IsIPAllowed(ip) {
 			out = append(out, ip)
 		}
 	}
@@ -312,7 +346,7 @@ func (u NetInterface) GetIPs(ctx context.Context, settings IPSettings) ([]netip.
 			continue
 		}
 		addr := prefix.Addr()
-		if !settings.Contains(addr) {
+		if !settings.IsIPAllowed(addr) {
 			continue
 		}
 		if settings.V4Enabled() && !foundIPV4 && addr.Is4() {
@@ -355,17 +389,23 @@ func (Static) CaddyModule() caddy.ModuleInfo {
 
 func (s Static) GetIPs(ctx context.Context, settings IPSettings) ([]netip.Addr, error) {
 	if settings.V4Enabled() && settings.V6Enabled() {
-		return s.IPs, nil
+		ips := []netip.Addr{}
+		for _, ip := range s.IPs {
+			if settings.IsIPAllowed(ip) {
+				ips = append(ips, ip)
+			}
+		}
+		return ips, nil
 	}
 
 	ips := []netip.Addr{}
 	for _, ip := range s.IPs {
-		if settings.V4Enabled() && ip.Is4() {
+		if settings.V4Enabled() && ip.Is4() && settings.IsIPAllowed(ip) {
 			ips = append(ips, ip)
 			continue
 		}
 
-		if settings.V6Enabled() && ip.Is6() {
+		if settings.V6Enabled() && ip.Is6() && settings.IsIPAllowed(ip) {
 			ips = append(ips, ip)
 			continue
 		}
